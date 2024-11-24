@@ -10,20 +10,20 @@ import {
 import { FirstKeyPipe } from '../../shared/pipes/first-key.pipe';
 import { AuthService } from '../../shared/services/auth.service';
 import { ToastrService } from 'ngx-toastr';
-import { HttpErrorResponse } from '@angular/common/http';
+import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-registration',
   standalone: true,
-  imports: [ReactiveFormsModule, CommonModule, FirstKeyPipe],
+  imports: [ReactiveFormsModule, CommonModule, FirstKeyPipe, RouterLink],
   templateUrl: './registration.component.html',
   styleUrl: './registration.component.css',
 })
 export class RegistrationComponent {
   constructor(
     public formBuilder: FormBuilder,
-    public authService: AuthService,
-    public toastr: ToastrService
+    private authService: AuthService,
+    private toastr: ToastrService
   ) {}
 
   isSubmitted: boolean = false;
