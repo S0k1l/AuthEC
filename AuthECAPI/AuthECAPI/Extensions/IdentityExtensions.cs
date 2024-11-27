@@ -1,5 +1,6 @@
 ﻿using AuthECAPI.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -11,6 +12,7 @@ namespace AuthECAPI.Extensions
         public static IServiceCollection AddIdentityHandlersAndStores(this IServiceCollection services)
         {
             services.AddIdentityApiEndpoints<AppUser>()
+                    .AddRoles<IdentityRole>()
                     .AddEntityFrameworkStores<AppDbContext>();
             return services;
         }
@@ -32,22 +34,35 @@ namespace AuthECAPI.Extensions
             this IServiceCollection services,
             IConfiguration config)
         {
-            services.AddAuthentication(x =>
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                    .AddJwtBearer(y =>
+                    {
+                        y.SaveToken = false;
+                        y.TokenValidationParameters = new TokenValidationParameters
+                        {
+                            ValidateIssuerSigningKey = true,
+                            IssuerSigningKey = new SymmetricSecurityKey(
+                                    Encoding.UTF8.GetBytes(
+                                        config["AppSettings:JWTSecret"]!)),
+                            ValidateIssuer = false,
+                            ValidateAudience = false,
+                            ValidateLifetime = true,
+                            ClockSkew = TimeSpan.Zero,
+                        };
+                    });
+
+            services.AddAuthorization(options =>
             {
-                x.DefaultAuthenticateScheme =
-                x.DefaultChallengeScheme =
-                x.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(y =>
-            {
-                y.SaveToken = false;
-                y.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                            Encoding.UTF8.GetBytes(
-                                config["AppSettings:JWTSecret"]!))
-                };
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                  .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+                  .RequireAuthenticatedUser()
+                  .Build();
+
+                options.AddPolicy("HasLibraryId", policy => policy.RequireClaim("libraryId"));
+                options.AddPolicy("FemaleOnly", policy => policy.RequireClaim("gender", "female"));
+                options.AddPolicy("Above21Only", policy => policy.RequireAssertion(contex => Int32.Parse(contex.User.Claims.First(x => x.Type == "age").Value) >= 21));
             });
+
             return services;
         }
 

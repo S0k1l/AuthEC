@@ -1,4 +1,5 @@
 ﻿using AuthECAPI.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,10 @@ namespace AuthECAPI.Controllers
             public string Email { get; set; }
             public string Password { get; set; }
             public string FullName { get; set; }
+            public string Role { get; set; }
+            public string Gender { get; set; }
+            public int Age { get; set; }
+            public int? LibraryId { get; set; }
         }
 
         public class LoginModel
@@ -32,6 +37,7 @@ namespace AuthECAPI.Controllers
             return app;
         }
 
+        [AllowAnonymous]
         private static async Task<IResult> CreateUser(
             UserManager<AppUser> userManager, 
             [FromBody] UserRegistrationModel userRegistrationModel)
@@ -41,9 +47,13 @@ namespace AuthECAPI.Controllers
                 UserName = userRegistrationModel.Email,
                 Email = userRegistrationModel.Email,
                 FullName = userRegistrationModel.FullName,
+                Gender = userRegistrationModel.Gender,
+                DOB = DateOnly.FromDateTime(DateTime.Now.AddYears(-userRegistrationModel.Age)),
+                LibraryId = userRegistrationModel.LibraryId,
             };
 
             var result = await userManager.CreateAsync(user, userRegistrationModel.Password);
+            await userManager.AddToRoleAsync(user, userRegistrationModel.Role);
 
             if (result.Succeeded)
             {
@@ -53,6 +63,7 @@ namespace AuthECAPI.Controllers
             return Results.BadRequest(result);
         }
 
+        [AllowAnonymous]
         private static async Task<IResult> SignIn(
             UserManager<AppUser> userManager, 
             [FromBody] LoginModel loginModel,
@@ -60,16 +71,26 @@ namespace AuthECAPI.Controllers
             var user = await userManager.FindByEmailAsync(loginModel.Email);
             if (user != null && await userManager.CheckPasswordAsync(user, loginModel.Password))
             {
+                var roles = await userManager.GetRolesAsync(user);
                 var signInKey = new SymmetricSecurityKey(
                                 Encoding.UTF8.GetBytes(appSettings.Value.JWTSecret));
 
+                ClaimsIdentity claims = new ClaimsIdentity(new Claim[]{
+                    new Claim("userId", user.Id.ToString()),
+                    new Claim("gender", user.Gender.ToString()),
+                    new Claim("age", (DateTime.Now.Year - user.DOB.Year).ToString()),
+                    new Claim(ClaimTypes.Role, roles.First()),
+                });
+
+                if (user.LibraryId != null) 
+                {
+                    claims.AddClaim(new Claim("libraryId", user.LibraryId.ToString()!));
+                }
+
                 var tokenDescriptor = new SecurityTokenDescriptor
                 {
-                    Subject = new ClaimsIdentity(new Claim[]
-                    {
-                new Claim("UserId", user.Id.ToString()),
-                    }),
-                    Expires = DateTime.UtcNow.AddMinutes(10),
+                    Subject = claims,
+                    Expires = DateTime.UtcNow.AddMinutes(1),
                     SigningCredentials = new SigningCredentials(
                         signInKey,
                         SecurityAlgorithms.HmacSha256Signature

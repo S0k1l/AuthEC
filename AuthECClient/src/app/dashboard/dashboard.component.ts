@@ -1,18 +1,29 @@
-import { Component } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, OnInit } from '@angular/core';
+import { UserService } from '../shared/services/user.service';
+import { HideIfClaimsNotMetDirective } from '../directives/hide-if-claims-not-met.directive';
+import { claimReq } from '../shared/utils/claimReq-utils';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [],
+  imports: [HideIfClaimsNotMetDirective],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.css',
 })
-export class DashboardComponent {
-  constructor(private router: Router) {}
+export class DashboardComponent implements OnInit {
+  constructor(private userService: UserService) {}
 
-  onLogout() {
-    localStorage.removeItem('token');
-    this.router.navigateByUrl('/signin');
+  fullName: string = '';
+  claimReq = claimReq;
+
+  ngOnInit(): void {
+    this.userService.getUserProfile().subscribe({
+      next: (res: any) => {
+        this.fullName = res.fullName;
+      },
+      error: (err: any) => {
+        console.log('Error while retrieving user profile\n', err);
+      },
+    });
   }
 }
